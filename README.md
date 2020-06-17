@@ -2,7 +2,7 @@
 
 Fetches [price listings](https://beancount.github.io/docs/06_beancount_language_syntax.html#prices) for commodities to use in the [beancount](http://furius.ca/beancount/) plain text double entry accounting system. Makes use of the [OpenExchangeRates api](https://openexchangerates.org/).
 
-Install using `cargo install --git TODO`.
+Install using `cargo install --git https://github.com/kellpossible/beancount-price-fetcher.git`.
 
 ## Usage
 

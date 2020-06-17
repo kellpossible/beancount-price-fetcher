@@ -125,6 +125,8 @@ dependencies = [
 [[package]]
 name = "commodity"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6439924472fc10cbea81e1777ecac513751fed2b378ba715243992bb29fc89a"
 dependencies = [
  "arrayvec",
  "chrono",
