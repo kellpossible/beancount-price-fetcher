@@ -15,9 +15,11 @@ USAGE:
     beancount-price-fetcher series [FLAGS] [OPTIONS] --app-id <ID> --start <DATE> --end <DATE> --commodities <COMMODITIES>... --base <COMMODITY>
 
 FLAGS:
-    -h, --help       Prints help information
-    -d, --desc       Order the listings in descending order (by date)
-    -V, --version    Prints version information
+    -h, --help              Prints help information
+    -q, --no-quota-check    Don't check the quota limits before performing the requests (makes the command faster by
+                            avoiding the extra request, but you may exceed your quota)
+    -d, --desc              Order the listings in descending order (by date)
+    -V, --version           Prints version information
 
 OPTIONS:
     -i, --app-id <ID>                     OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )
