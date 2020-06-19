@@ -6,7 +6,7 @@ Install using `cargo install --git https://github.com/kellpossible/beancount-pri
 
 ## Usage
 
-## `series` command
+### `series` command
 
 ```text
 Fetches a series of beancount price listings for commodities
@@ -38,4 +38,20 @@ $ beancount-price-fetcher series --app-id {YOUR_APP_ID} --start 2020-01-01 --end
 2020-01-03 price NZD 0.9589 AUD
 2020-01-02 price NZD 0.9592 AUD
 2020-01-01 price NZD 0.9595 AUD
+```
+
+### `usage` command
+
+```text
+Prints your api usage stats
+
+USAGE:
+    beancount-price-fetcher usage --app-id <ID>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -i, --app-id <ID>    OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )
 ```
