@@ -1,11 +1,11 @@
 use anyhow::anyhow;
-use chrono::{Duration, NaiveDate, NaiveDateTime, Utc};
+use beancount_price_fetcher::openexchangerate::{OpenExchangeRate, Usage};
+use chrono::{Duration, NaiveDate};
 use clap::{App, Arg};
 use commodity::{exchange_rate::ExchangeRate, CommodityTypeID};
 use futures::{stream, StreamExt};
 use reqwest::Client;
-use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use std::{
     collections::{BTreeMap, HashSet},
     str::FromStr,
@@ -15,29 +15,9 @@ pub type AppID = String;
 
 const API_URL: &'static str = "https://openexchangerates.org/api";
 
-#[derive(Deserialize, Debug)]
-struct OpenExchangeRate {
-    timestamp: u32,
-    base: CommodityTypeID,
-    rates: BTreeMap<CommodityTypeID, Decimal>,
-}
-
 #[derive(Debug)]
 pub struct TimeSeries {
     map: BTreeMap<NaiveDate, ExchangeRate>,
-}
-
-impl Into<ExchangeRate> for OpenExchangeRate {
-    fn into(self) -> ExchangeRate {
-        let date = Some(NaiveDateTime::from_timestamp(self.timestamp as i64, 0).date());
-
-        ExchangeRate {
-            date,
-            obtained_datetime: Some(Utc::now()),
-            base: Some(self.base),
-            rates: self.rates,
-        }
-    }
 }
 
 fn symbols_argument(includes: Vec<CommodityTypeID>) -> Option<String> {
@@ -56,6 +36,22 @@ fn symbols_argument(includes: Vec<CommodityTypeID>) -> Option<String> {
     }
 }
 
+async fn request_json<T: DeserializeOwned>(client: &Client, url: &str) -> anyhow::Result<T> {
+    let result: T = client.get(url).send().await?.json::<T>().await?;
+    Ok(result)
+}
+
+pub async fn get_usage(client: &Client, app_id: &AppID) -> anyhow::Result<Usage> {
+    let url = format!(
+        "{api_url}/usage.json?app_id={app_id}&prettyprint=false",
+        api_url = API_URL,
+        app_id = app_id,
+    );
+
+    request_json(client, &url).await
+}
+
+// TODO: refactor this to use a hashmap for arguments, and a generic request api.
 async fn get_day_json(
     client: &Client,
     app_id: &AppID,
@@ -63,7 +59,7 @@ async fn get_day_json(
     json: &str,
 ) -> anyhow::Result<ExchangeRate> {
     let mut url = format!(
-        "{api_url}/{json}?app_id={app_id}",
+        "{api_url}/{json}?app_id={app_id}&prettyprint=false",
         api_url = API_URL,
         app_id = app_id,
         json = json,
@@ -74,14 +70,9 @@ async fn get_day_json(
         }
     }
 
-    let rate: ExchangeRate = client
-        .get(&url)
-        .send()
-        .await?
-        .json::<OpenExchangeRate>()
-        .await?
-        .into();
-    Ok(rate)
+    request_json::<OpenExchangeRate>(client, &url)
+        .await
+        .map(|rate| rate.into())
 }
 
 pub async fn get_latest(
@@ -183,22 +174,27 @@ pub async fn get_time_series_with_historical(
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
+    let app_id_arg = Arg::with_name("app-id")
+        .long("app-id")
+        .short('i')
+        .value_name("ID")
+        .about("OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )")
+        .takes_value(true)
+        .required(true);
+
     let app = App::new("beancount-price-fetcher")
         .version("0.1")
         .author("Luke Frisken <l.frisken@gmail.com>")
         .about("Fetches beancount price listings for commodities")
         .subcommand(
+            App::new("usage")
+                .about("Prints your api usage stats")
+                .arg(app_id_arg.clone()),
+        )
+        .subcommand(
             App::new("series")
                 .about("Fetches a series of beancount price listings for commodities")
-                .arg(
-                    Arg::with_name("app-id")
-                        .long("app-id")
-                        .short('i')
-                        .value_name("ID")
-                        .about("OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )")
-                        .takes_value(true)
-                        .required(true),
-                )
+                .arg(app_id_arg.clone())
                 .arg(
                     Arg::with_name("start-date")
                         .long("start")
@@ -221,7 +217,17 @@ async fn main() -> anyhow::Result<()> {
                     Arg::with_name("order-descending")
                         .long("desc")
                         .short('d')
-                        .about("Order the listings in descending order (by date)")
+                        .about("Order the listings in descending order (by date)"),
+                )
+                .arg(
+                    Arg::with_name("no-quota-check")
+                        .long("no-quota-check")
+                        .short('q')
+                        .about(
+                            "Don't check the quota limits before performing the requests \
+                        (makes the command faster by avoiding the extra request, but you may \
+                        exceed your quota)",
+                        ),
                 )
                 .arg(
                     Arg::with_name("commodities")
@@ -259,12 +265,25 @@ async fn main() -> anyhow::Result<()> {
                         .short('r')
                         .value_name("DP")
                         .about("Number of decimal places to round to")
-                        .takes_value(true)
+                        .takes_value(true),
                 ),
         );
 
     let matches = app.get_matches();
 
+    if let Some(matches) = matches.subcommand_matches("usage") {
+        let app_id = matches
+            .value_of("app-id")
+            .expect("expected app-id to be specified")
+            .to_string();
+
+        let client = Client::new();
+
+        let usage = get_usage(&client, &app_id).await?;
+        println!("{}", serde_yaml::to_string(&usage)?);
+    }
+
+    // Series Command
     if let Some(matches) = matches.subcommand_matches("series") {
         let app_id = matches
             .value_of("app-id")
@@ -311,7 +330,26 @@ async fn main() -> anyhow::Result<()> {
 
         request_commodities.insert(base_commodity);
 
+        let no_quota_check: bool = matches.is_present("no-quota-check");
+
         let client = Client::new();
+
+        if !no_quota_check {
+            let usage = get_usage(&client, &app_id).await?;
+
+            let dates_diff = end_date.signed_duration_since(start_date);
+            let expected_requests = dates_diff.num_days();
+            let requests_remaining = usage.data.usage.requests_remaining;
+
+            if expected_requests > requests_remaining as i64 {
+                return Err(anyhow!(
+                    "The expected number of requests ({}) for this command \
+                will exceed your remaining quota ({})",
+                    expected_requests,
+                    requests_remaining
+                ));
+            }
+        }
 
         let series = get_time_series_with_historical(
             &client,
@@ -326,28 +364,45 @@ async fn main() -> anyhow::Result<()> {
         for commodity in &commodities {
             let keys = series.map.keys();
 
-            let keys: Box<dyn Iterator<Item = &NaiveDate>> = if matches.is_present("order-descending") {
-                Box::new(keys.rev())
-            } else {
-                Box::new(keys.into_iter())
-            };
+            let keys: Box<dyn Iterator<Item = &NaiveDate>> =
+                if matches.is_present("order-descending") {
+                    Box::new(keys.rev())
+                } else {
+                    Box::new(keys.into_iter())
+                };
 
             for key in keys {
-                let exchange_rate = series.map.get(key).ok_or_else(|| format!("Exchange rate for date {} not present in the map", key)).unwrap();
-                let mut rate_between = exchange_rate.rate_between(commodity, &base_commodity).map_err(|err| anyhow!("Unable to calculate the exchange rate between {} and {} because: {}", commodity, base_commodity, err))?.expect("unable to calculate the exchange rate between commodities");
+                let exchange_rate = series
+                    .map
+                    .get(key)
+                    .ok_or_else(|| format!("Exchange rate for date {} not present in the map", key))
+                    .unwrap();
+                let mut rate_between = exchange_rate
+                    .rate_between(commodity, &base_commodity)
+                    .map_err(|err| {
+                        anyhow!(
+                            "Unable to calculate the exchange rate between {} and {} because: {}",
+                            commodity,
+                            base_commodity,
+                            err
+                        )
+                    })?
+                    .expect("unable to calculate the exchange rate between commodities");
 
                 if let Some(rounding) = matches.value_of("rounding") {
-                    let dp: u32 = rounding.parse().map_err(|err| anyhow!("Unable to parse rounding: {}", err))?;
+                    let dp: u32 = rounding
+                        .parse()
+                        .map_err(|err| anyhow!("Unable to parse rounding: {}", err))?;
                     rate_between = rate_between.round_dp(dp);
                 }
-                
-                println!("{date} price {commodity} {rate} {base}", 
+
+                println!(
+                    "{date} price {commodity} {rate} {base}",
                     date = exchange_rate.date.unwrap().format("%Y-%m-%d"),
                     commodity = commodity,
                     rate = rate_between,
                     base = base_commodity,
                 )
-                
             }
         }
     }
