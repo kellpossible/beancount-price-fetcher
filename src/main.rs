@@ -174,11 +174,11 @@ pub async fn get_time_series_with_historical(
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
-    let app_id_arg = Arg::with_name("app-id")
+    let app_id_arg = Arg::new("app-id")
         .long("app-id")
         .short('i')
         .value_name("ID")
-        .about("OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )")
+        .help("OpenExchangeRates App ID ( see https://openexchangerates.org/account/app-ids )")
         .takes_value(true)
         .required(true);
 
@@ -196,75 +196,76 @@ async fn main() -> anyhow::Result<()> {
                 .about("Fetches a series of beancount price listings for commodities")
                 .arg(app_id_arg.clone())
                 .arg(
-                    Arg::with_name("start-date")
+                    Arg::new("start-date")
                         .long("start")
                         .short('s')
                         .value_name("DATE")
-                        .about("Start date in format YYYY-mm-dd, e.g. 2020-05-25")
+                        .help("Start date in format YYYY-mm-dd, e.g. 2020-05-25")
                         .takes_value(true)
                         .required(true),
                 )
                 .arg(
-                    Arg::with_name("end-date")
+                    Arg::new("end-date")
                         .long("end")
                         .short('e')
                         .value_name("DATE")
-                        .about("End date in format YYYY-mm-dd, e.g. 2020-05-25")
+                        .help("End date in format YYYY-mm-dd, e.g. 2020-05-25")
                         .takes_value(true)
                         .required(true),
                 )
                 .arg(
-                    Arg::with_name("order-descending")
+                    Arg::new("order-descending")
                         .long("desc")
                         .short('d')
-                        .about("Order the listings in descending order (by date)"),
+                        .help("Order the listings in descending order (by date)"),
                 )
                 .arg(
-                    Arg::with_name("no-quota-check")
+                    Arg::new("no-quota-check")
                         .long("no-quota-check")
                         .short('q')
-                        .about(
+                        .help("Don't check the quota limits before performing the requests")
+                        .long_help(
                             "Don't check the quota limits before performing the requests \
-                        (makes the command faster by avoiding the extra request, but you may \
-                        exceed your quota)",
+                            (makes the command faster by avoiding the extra request, but you may \
+                            exceed your quota)",
                         ),
                 )
                 .arg(
-                    Arg::with_name("commodities")
+                    Arg::new("commodities")
                         .long("commodities")
                         .short('c')
                         .value_name("COMMODITIES")
                         .multiple(true)
-                        .about("Commodities to request exchange rates for (e.g AUD USD)")
+                        .help("Commodities to request exchange rates for (e.g AUD USD)")
                         .takes_value(true)
                         .required(true),
                 )
                 .arg(
-                    Arg::with_name("base")
+                    Arg::new("base")
                         .long("base")
                         .short('b')
                         .value_name("COMMODITY")
-                        .about(
+                        .help(
                             "Commodity to use as the reference/base in the beancount price listing",
                         )
                         .takes_value(true)
                         .required(true),
                 )
                 .arg(
-                    Arg::with_name("parallel-requests")
+                    Arg::new("parallel-requests")
                         .long("parallel-requests")
                         .short('p')
                         .value_name("N")
-                        .about("Number of parallel network requests to use (when possible)")
+                        .help("Number of parallel network requests to use (when possible)")
                         .takes_value(true)
                         .default_value("2"),
                 )
                 .arg(
-                    Arg::with_name("rounding")
+                    Arg::new("rounding")
                         .long("rounding")
                         .short('r')
                         .value_name("DP")
-                        .about("Number of decimal places to round to")
+                        .help("Number of decimal places to round to")
                         .takes_value(true),
                 ),
         );
